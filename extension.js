@@ -1,5 +1,8 @@
-function insertQuote(token, fallbackIfError) {
-  fetch("https://readwise.io/api/v2/highlights/random?numHighlights=1", {
+const HIGHLIGHTS_ROUTE = "https://readwise.io/api/v2/highlights/random";
+const NUM_QUOTES = 10;
+
+async function populateCache(token, extensionAPI, fallbackIfError) {
+  return fetch(`${HIGHLIGHTS_ROUTE}?numHighlights=${NUM_QUOTES}`, {
     headers: { Authorization: "Token " + token },
   })
     .then((response) => {
@@ -7,19 +10,7 @@ function insertQuote(token, fallbackIfError) {
         return response.json();
       }
     })
-    .then(({ results }) => {
-      const quote = results[0];
-      const { text, title, author, id } = quote;
-      console.log(results);
-      window.roamAlphaAPI.createBlock({
-        location: { "parent-uid": getTodayPageUid(), order: 0 },
-        block: {
-          string: `**${text}** - __${title}__, ${author} [View in Readwise](https://readwise.io/open/${id})`,
-          uid:
-            window.roamAlphaAPI.util.generateUID().slice(0, 3) + "-" + "quote",
-        },
-      });
-    })
+    .then(({ results }) => extensionAPI.settings.set("quotes", results))
     .catch((err) => {
       console.error(err);
       fallbackIfError();
@@ -71,8 +62,7 @@ function createSettings(extensionAPI) {
           onChange: (evt) =>
             debounce(() => {
               const token = evt.target.value;
-              console.log("Input Changed!", token);
-              insertQuoteOrError(token);
+              insertQuoteOrError(token, extensionAPI);
             }, 300),
         },
       },
@@ -96,7 +86,7 @@ function containsBlockWithExtension(extension) {
   return blocks.filter((block) => block[0].endsWith(extension)).length > 0;
 }
 
-function insertQuoteOrError(token) {
+function insertQuoteOrError(token, extensionAPI) {
   const hasQuote = containsBlockWithExtension("-quote");
   const hasError = containsBlockWithExtension("-error");
 
@@ -106,10 +96,7 @@ function insertQuoteOrError(token) {
   }
 
   if (!hasQuote) {
-    insertQuote(token, () => {
-      if (hasError) return;
-      createErrorBlock(hasError);
-    });
+    getFromCacheOrAPI(token, extensionAPI, hasError);
   }
 }
 
@@ -121,13 +108,41 @@ function debounce(fn, d) {
 
   timer = setTimeout(fn, d);
 }
+async function getFromCacheOrAPI(token, extensionAPI, hasError) {
+  let quotes = extensionAPI.settings.get("quotes");
+  if (!quotes || quotes.length === 0) {
+    await populateCache(token, extensionAPI, () => {
+      if (!hasError) {
+        createErrorBlock();
+      }
+    });
+    // get fresh data
+    quotes = extensionAPI.settings.get("quotes");
+  }
+
+  if (quotes && quotes.length > 0) {
+    const quote = quotes.pop();
+    insertQuote(quote);
+    await extensionAPI.settings.set("quotes", quotes);
+  }
+}
+
+function insertQuote(quote) {
+  const { text, title, author, id } = quote;
+  window.roamAlphaAPI.createBlock({
+    location: { "parent-uid": getTodayPageUid(), order: 0 },
+    block: {
+      string: `**${text}** - __${title}__, ${author} [View in Readwise](https://readwise.io/open/${id})`,
+      uid: window.roamAlphaAPI.util.generateUID().slice(0, 3) + "-" + "quote",
+    },
+  });
+}
 
 export default {
   onload: ({ extensionAPI }) => {
-    console.log("onload");
     createSettings(extensionAPI);
     const token = extensionAPI.settings.get("authorization-token");
-    insertQuoteOrError(token);
+    insertQuoteOrError(token, extensionAPI);
   },
   onunload: () => {},
 };
