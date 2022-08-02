@@ -110,7 +110,7 @@ function debounce(fn, d) {
 }
 async function getFromCacheOrAPI(token, extensionAPI, hasError) {
   let quotes = extensionAPI.settings.get("quotes");
-  if (!quotes || quotes.length === 0) {
+  if (!quotes || !Array.isArray(quotes) || quotes.length === 0) {
     await populateCache(token, extensionAPI, () => {
       if (!hasError) {
         createErrorBlock();
