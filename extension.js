@@ -143,6 +143,11 @@ export default {
     createSettings(extensionAPI);
     const token = extensionAPI.settings.get("authorization-token");
     insertQuoteOrError(token, extensionAPI);
+
+    setInterval(() => {
+      const token = extensionAPI.settings.get("authorization-token");
+      insertQuoteOrError(token, extensionAPI);
+    }, 60 * 60 * 1000);
   },
   onunload: () => {},
 };
