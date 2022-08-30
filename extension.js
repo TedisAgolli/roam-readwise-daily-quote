@@ -144,10 +144,15 @@ export default {
     const token = extensionAPI.settings.get("authorization-token");
     insertQuoteOrError(token, extensionAPI);
 
-    setInterval(() => {
+    const id = setInterval(() => {
       const token = extensionAPI.settings.get("authorization-token");
       insertQuoteOrError(token, extensionAPI);
     }, 60 * 60 * 1000);
+    localStorage.setItem("readwise-interval-id", id);
   },
-  onunload: () => {},
+  onunload: () => {
+    const id = localStorage.getItem("readwise-interval-id");
+    localStorage.removeItem("readwise-interval-id");
+    clearTimeout(id);
+  },
 };
